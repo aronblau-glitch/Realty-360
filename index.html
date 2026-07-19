@@ -704,6 +704,9 @@ create trigger on_auth_user_created
   after insert on auth.users for each row execute procedure handle_new_user();
 `;
 
+const SB_URL = 'https://wsmhjfshkzcpqijlucub.supabase.co';
+const SB_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbWhqZnNoa3pjcHFpamx1Y3ViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0NzQ3NDgsImV4cCI6MjEwMDA1MDc0OH0.I2hsrmN-mdN-55D6dyHEK7b0fYK_y8qASFbKY5EoM7g';
+
 let _sb = null;
 let currentUser = null;
 let currentProfile = null;
@@ -712,42 +715,14 @@ let propertyTransactions = [];
 
 function getSB() {
   if (_sb) return _sb;
-  const cfg = getConfig();
-  if (!cfg) return null;
-  _sb = supabase.createClient(cfg.url, cfg.key);
+  _sb = supabase.createClient(SB_URL, SB_ANON_KEY);
   return _sb;
 }
 
 function getConfig() {
+  // Service role key stored locally by admin only
   const s = localStorage.getItem('opa_sb_config');
-  return s ? JSON.parse(s) : null;
-}
-
-async function saveConfig() {
-  const url = document.getElementById('sbUrl').value.trim().replace(/\/$/, '');
-  const key = document.getElementById('sbKey').value.trim();
-  const serviceKey = document.getElementById('sbServiceKey').value.trim();
-  if (!url || !key) { showSetupMsg('Enter both URL and key.', true); return; }
-  _sb = supabase.createClient(url, key);
-  try {
-    await _sb.from('profiles').select('id').limit(1);
-    localStorage.setItem('opa_sb_config', JSON.stringify({ url, key, serviceKey }));
-    showSetupMsg('Connected!', false);
-    setTimeout(bootApp, 500);
-  } catch(e) {
-    showSetupMsg('Could not connect: ' + e.message, true);
-  }
-}
-
-function showSetupMsg(msg, err) {
-  const el = document.getElementById('setupMsg');
-  el.textContent = msg; el.className = 'auth-msg ' + (err ? 'err' : 'ok');
-}
-
-function resetConfig() {
-  localStorage.removeItem('opa_sb_config');
-  _sb = null;
-  showScreen('setup');
+  return s ? JSON.parse(s) : {};
 }
 
 function copySchema() {
@@ -758,13 +733,8 @@ function copySchema() {
 // BOOT
 // ═══════════════════════════════════════════════════════
 async function bootApp() {
+  // Pre-fill invite key if admin saved service role key previously
   const cfg = getConfig();
-  if (!cfg) { showScreen('setup'); return; }
-  // Pre-fill setup fields in case user returns to setup screen
-  if (cfg.url) document.getElementById('sbUrl').value = cfg.url;
-  if (cfg.key) document.getElementById('sbKey').value = cfg.key;
-  if (cfg.serviceKey) document.getElementById('sbServiceKey').value = cfg.serviceKey;
-  // Pre-fill invite key
   const invKeyEl = document.getElementById('inviteServiceKey');
   if (invKeyEl && cfg.serviceKey) invKeyEl.value = cfg.serviceKey;
   const sb = getSB();
@@ -783,6 +753,7 @@ async function bootApp() {
     } else if (event === 'SIGNED_OUT') {
       currentUser = null; currentProfile = null;
       showScreen('auth');
+      prefillRemembered();
     }
   });
 }
@@ -1446,9 +1417,10 @@ async function inviteUser() {
   const svcKey = document.getElementById('inviteServiceKey').value.trim();
   if (!email || !svcKey) { setInviteMsg('Enter both email and service role key.', true); return; }
   document.getElementById('inviteSpinner').style.display='inline-block';
-  const cfg = getConfig();
+  // Save service key for next time
+  localStorage.setItem('opa_sb_config', JSON.stringify({ ...getConfig(), serviceKey: svcKey }));
   try {
-    const res = await fetch(`${cfg.url}/auth/v1/invite`, {
+    const res = await fetch(`${SB_URL}/auth/v1/invite`, {
       method: 'POST',
       headers: { 'Content-Type':'application/json', 'apikey': svcKey, 'Authorization':'Bearer '+svcKey },
       body: JSON.stringify({ email })
