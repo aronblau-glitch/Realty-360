@@ -279,6 +279,10 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
       <div id="authFormSignIn">
         <div class="form-group"><label>Email</label><input type="email" id="siEmail" placeholder="you@example.com"></div>
         <div class="form-group"><label>Password</label><input type="password" id="siPassword" placeholder="••••••••"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <input type="checkbox" id="rememberMe" style="width:auto;accent-color:var(--accent2)">
+          <label for="rememberMe" style="margin:0;font-size:0.82rem;color:var(--text2);cursor:pointer">Remember me</label>
+        </div>
         <button class="btn btn-primary btn-full" onclick="signIn()">Sign In</button>
       </div>
       <div id="authFormSignUp" style="display:none">
@@ -288,9 +292,6 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
         <button class="btn btn-primary btn-full" onclick="signUp()">Create Account</button>
       </div>
       <div id="authMsg" class="auth-msg"></div>
-      <div style="margin-top:16px;text-align:center">
-        <button class="btn btn-secondary btn-sm" onclick="resetConfig()" style="font-size:0.72rem;opacity:.6">Change Supabase project</button>
-      </div>
     </div>
   </div>
 </div>
@@ -773,6 +774,7 @@ async function bootApp() {
     showScreen('app');
   } else {
     showScreen('auth');
+    prefillRemembered();
   }
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session) {
@@ -817,8 +819,23 @@ function switchAuth(mode) {
 async function signIn() {
   const email = document.getElementById('siEmail').value.trim();
   const password = document.getElementById('siPassword').value;
+  const remember = document.getElementById('rememberMe').checked;
+  if (remember) {
+    localStorage.setItem('opa_remember', JSON.stringify({ email, password }));
+  } else {
+    localStorage.removeItem('opa_remember');
+  }
   const { error } = await getSB().auth.signInWithPassword({ email, password });
   if (error) setAuthMsg(error.message, true);
+}
+
+function prefillRemembered() {
+  const saved = localStorage.getItem('opa_remember');
+  if (!saved) return;
+  const { email, password } = JSON.parse(saved);
+  document.getElementById('siEmail').value = email || '';
+  document.getElementById('siPassword').value = password || '';
+  document.getElementById('rememberMe').checked = true;
 }
 
 async function signUp() {
