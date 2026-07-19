@@ -245,6 +245,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
       <div class="auth-sub">Connect your Supabase project to get started.</div>
       <div class="form-group"><label>Supabase Project URL</label><input type="url" id="sbUrl" placeholder="https://xxxx.supabase.co"></div>
       <div class="form-group"><label>Supabase Anon Key</label><input type="text" id="sbKey" placeholder="eyJh..." style="font-family:monospace;font-size:0.78rem"></div>
+      <div class="form-group"><label>Service Role Key <span style="color:var(--text3);font-weight:400;font-size:0.72rem">(for sending invites — stored locally only)</span></label><input type="password" id="sbServiceKey" placeholder="eyJh..." style="font-family:monospace;font-size:0.78rem"></div>
       <button class="btn btn-primary btn-full" onclick="saveConfig()">Connect</button>
       <div id="setupMsg" class="auth-msg"></div>
       <div class="sep"></div>
@@ -724,11 +725,12 @@ function getConfig() {
 async function saveConfig() {
   const url = document.getElementById('sbUrl').value.trim().replace(/\/$/, '');
   const key = document.getElementById('sbKey').value.trim();
+  const serviceKey = document.getElementById('sbServiceKey').value.trim();
   if (!url || !key) { showSetupMsg('Enter both URL and key.', true); return; }
   _sb = supabase.createClient(url, key);
   try {
     await _sb.from('profiles').select('id').limit(1);
-    localStorage.setItem('opa_sb_config', JSON.stringify({ url, key }));
+    localStorage.setItem('opa_sb_config', JSON.stringify({ url, key, serviceKey }));
     showSetupMsg('Connected!', false);
     setTimeout(bootApp, 500);
   } catch(e) {
@@ -757,6 +759,13 @@ function copySchema() {
 async function bootApp() {
   const cfg = getConfig();
   if (!cfg) { showScreen('setup'); return; }
+  // Pre-fill setup fields in case user returns to setup screen
+  if (cfg.url) document.getElementById('sbUrl').value = cfg.url;
+  if (cfg.key) document.getElementById('sbKey').value = cfg.key;
+  if (cfg.serviceKey) document.getElementById('sbServiceKey').value = cfg.serviceKey;
+  // Pre-fill invite key
+  const invKeyEl = document.getElementById('inviteServiceKey');
+  if (invKeyEl && cfg.serviceKey) invKeyEl.value = cfg.serviceKey;
   const sb = getSB();
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
@@ -1370,6 +1379,9 @@ async function deleteTx(id) {
 // ADMIN PAGE
 // ═══════════════════════════════════════════════════════
 async function loadAdminPage() {
+  const cfg = getConfig();
+  const invKeyEl = document.getElementById('inviteServiceKey');
+  if (invKeyEl && cfg && cfg.serviceKey && !invKeyEl.value) invKeyEl.value = cfg.serviceKey;
   const sb = getSB();
   const { data: users } = await sb.from('profiles').select('*').order('created_at');
   const { data: props } = await sb.from('properties').select('*').order('created_at', { ascending: false });
